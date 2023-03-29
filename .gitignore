@@ -1,0 +1,4 @@
+# Ignore IDEA Clion related files
+**/.idea
+**/cmake-build-debug
+**/.editorconfig
