@@ -1,11 +1,17 @@
 #include <iostream>
 #include <vector>
+#include <bitset>
+#include <assert.h>
 
 #define PRINT(a) result = #a;
 
 namespace Core {
     namespace Util {
-
+        bool isLittleEndian() {
+            int a = 5; // 0x00 0x00 0x00 0x05 - desired little endian
+            std::string result = std::bitset<8>(a).to_string();
+            if(result.back() == '1') return true;
+        }
     }
 
     // writing info into buffer vector in little-endian serialization
@@ -241,6 +247,8 @@ using namespace EventSystem;
 using namespace ObjectModel;
 
 int main(int argc, char **argv) {
+    assert(Core::Util::isLittleEndian());
+    
     int32_t foo = 5;
     Primitive* p = Primitive::createI32("int32", Type::I32, foo);
 
