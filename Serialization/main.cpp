@@ -2,6 +2,7 @@
 #include <vector>
 #include <bitset>
 #include <assert.h>
+#include <fstream>
 
 #define PRINT(a) result = #a;
 
@@ -11,6 +12,17 @@ namespace Core {
             int a = 5; // 0x00 0x00 0x00 0x05 - desired little endian
             std::string result = std::bitset<8>(a).to_string();
             if(result.back() == '1') return true;
+        }
+
+        void save(const char* file, std::vector<int8_t> buffer) {
+            std::ofstream out;
+            out.open(file);
+
+            for(unsigned i = 0; i < buffer.size(); i++) {
+                out << buffer[i];
+            }
+
+            out.close();
         }
     }
 
@@ -248,7 +260,7 @@ using namespace ObjectModel;
 
 int main(int argc, char **argv) {
     assert(Core::Util::isLittleEndian());
-    
+
     int32_t foo = 5;
     Primitive* p = Primitive::createI32("int32", Type::I32, foo);
 
