@@ -93,20 +93,45 @@ namespace Core {
         void retrieveNsave(ObjectModel::Root* r){
             int16_t iterator = 0;
             std::vector<int8_t> buffer(r->getSize());
-            std::string name = r->getName().substr(0, r->getName().length()).append(".ttc");
+            std::string name = r->getName().substr(0, r->getName().length()).append(".ser");
             r->pack(&buffer, &iterator);
             save(name.c_str(), buffer);
         }
     }
-    
+
     // writing info into buffer vector in little-endian serialization
     template<typename T>
     void encode(std::vector<int8_t>* buffer, int16_t* iterator, T value) {
         for (unsigned i = 0, j = 0; i < sizeof(T); i++) {
-            (*buffer)[(*iterator)++] = value >> ((sizeof(T) * 8) - ((i == 0) ? j : j += 8));
+            (*buffer)[(*iterator)++] = (value >> ((sizeof(T)* 8) - 8) - ((i == 0) ? j : j += 8));
         }
     }
 
+    template<>
+    void encode<float>(std::vector<int8_t>* buffer, int16_t* iterator, float value) {
+        int32_t result = *reinterpret_cast<int32_t*>(&value);
+        encode<int32_t>(buffer, iterator, result);
+    }
+
+    template<>
+    void encode<double>(std::vector<int8_t>* buffer, int16_t* iterator, double value) {
+        int64_t result = *reinterpret_cast<int64_t*>(&value);
+        encode<int64_t>(buffer, iterator, result);
+    }
+
+    template<>
+    void encode<std::string>(std::vector<int8_t>* buffer, int16_t* iterator, std::string value) {
+        for (unsigned i = 0; i < value.size(); i++) {
+            encode<int8_t>(buffer, iterator, value[i]);
+        }
+    }
+
+    template<typename T>
+    void encode(std::vector<int8_t>* buffer, int16_t* iterator, std::vector<T> value) {
+        for (unsigned i = 0; i < value.size(); i++) {
+            encode<T>(buffer, iterator, value[i]);
+        }
+    }
 
 
 }
@@ -155,8 +180,13 @@ namespace ObjectModel {
         return p;
     }
 
-    void Primitive::pack(std::vector<int8_t>*, int16_t*) {
-
+    void Primitive::pack(std::vector<int8_t>* buffer, int16_t* iterator) {
+        Core::encode<std::string>(buffer, iterator, name);
+        Core::encode<int16_t>(buffer, iterator, nameLength);
+        Core::encode<int8_t>(buffer, iterator, wrapper);
+        Core::encode<int8_t>(buffer, iterator, type);
+        Core::encode<int8_t>(buffer, iterator, *data);
+        Core::encode<int32_t>(buffer, iterator, size);
     }
 }
 
