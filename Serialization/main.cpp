@@ -90,8 +90,15 @@ namespace Core {
             out.close();
         }
 
+        void retrieveNsave(ObjectModel::Root* r){
+            int16_t iterator = 0;
+            std::vector<int8_t> buffer(r->getSize());
+            std::string name = r->getName().substr(0, r->getName().length()).append(".ttc");
+            r->pack(&buffer, &iterator);
+            save(name.c_str(), buffer);
+        }
     }
-
+    
     // writing info into buffer vector in little-endian serialization
     template<typename T>
     void encode(std::vector<int8_t>* buffer, int16_t* iterator, T value) {
@@ -100,13 +107,7 @@ namespace Core {
         }
     }
 
-    void retrieveNsave(ObjectModel::Root* r){
-        int16_t iterator = 0;
-        std::vector<int8_t> buffer(r->getSize());
-        std::string name = r->getName().substr(0, r->getName().length()).append(".ttc");
-        r->pack(&buffer, &iterator);
-        save(name.c_str(), buffer);
-    }
+
 
 }
 
@@ -133,8 +134,8 @@ namespace ObjectModel {
         return name;
     }
 
-    void Root::pack(std::vector<int8_t>*, int16_t*) {
-        // TODO: likely pure virtual?
+    void Root::pack(std::vector<int8_t>* buffer, int16_t* iterator) {
+        Core::encode<std::string>(buffer, iterator, name);
     }
 
     Primitive::Primitive() {
