@@ -6,35 +6,6 @@
 
 #define PRINT(a) result = #a;
 
-namespace Core {
-    namespace Util {
-        bool isLittleEndian() {
-            int a = 5; // 0x00 0x00 0x00 0x05 - desired little endian
-            std::string result = std::bitset<8>(a).to_string();
-            if(result.back() == '1') return true;
-        }
-
-        void save(const char* file, std::vector<int8_t> buffer) {
-            std::ofstream out;
-            out.open(file);
-
-            for(unsigned i = 0; i < buffer.size(); i++) {
-                out << buffer[i];
-            }
-
-            out.close();
-        }
-    }
-
-    // writing info into buffer vector in little-endian serialization
-    template<typename T>
-    void encode(std::vector<int8_t>* buffer, int16_t* iterator, T value) {
-        for (unsigned i = 0, j = 0; i < sizeof(T); i++) {
-            (*buffer)[(*iterator)++] = value >> ((sizeof(T) * 8) - ((i == 0) ? j : j += 8));
-        }
-    }
-
-}
 
 namespace ObjectModel {
 
@@ -98,13 +69,55 @@ namespace ObjectModel {
 
     };
 
+}
+
+namespace Core {
+    namespace Util {
+        bool isLittleEndian() {
+            int a = 5; // 0x00 0x00 0x00 0x05 - desired little endian
+            std::string result = std::bitset<8>(a).to_string();
+            if(result.back() == '1') return true;
+        }
+
+        void save(const char* file, std::vector<int8_t> buffer) {
+            std::ofstream out;
+            out.open(file);
+
+            for(unsigned i = 0; i < buffer.size(); i++) {
+                out << buffer[i];
+            }
+
+            out.close();
+        }
+
+    }
+
+    // writing info into buffer vector in little-endian serialization
+    template<typename T>
+    void encode(std::vector<int8_t>* buffer, int16_t* iterator, T value) {
+        for (unsigned i = 0, j = 0; i < sizeof(T); i++) {
+            (*buffer)[(*iterator)++] = value >> ((sizeof(T) * 8) - ((i == 0) ? j : j += 8));
+        }
+    }
+
+    void retrieveNsave(ObjectModel::Root* r){
+        int16_t iterator = 0;
+        std::vector<int8_t> buffer(r->getSize());
+        std::string name = r->getName().substr(0, r->getName().length()).append(".ttc");
+        r->pack(&buffer, &iterator);
+        save(name.c_str(), buffer);
+    }
+
+}
+
+namespace ObjectModel {
     //definition
     Root::Root() // init list is considered best practice
-        :
-        name("unknown"),
-        wrapper(0),
-        nameLength(0),
-        size(sizeof nameLength + sizeof wrapper + sizeof size) {}
+            :
+            name("unknown"),
+            wrapper(0),
+            nameLength(0),
+            size(sizeof nameLength + sizeof wrapper + sizeof size) {}
 
     void Root::setName(std::string name) {
         this->name = name;
@@ -145,7 +158,6 @@ namespace ObjectModel {
 
     }
 }
-
 
 namespace EventSystem {
     class Event;
