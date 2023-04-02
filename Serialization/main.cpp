@@ -6,9 +6,43 @@
 
 #define PRINT(a) result = #a;
 
+namespace Core {
+    // writing info into buffer vector in little-endian serialization
+    template<typename T>
+    void encode(std::vector<int8_t>* buffer, int16_t* iterator, T value) {
+        for (unsigned i = 0, j = 0; i < sizeof(T); i++) {
+            (*buffer)[(*iterator)++] = (value >> ((sizeof(T)* 8) - 8) - ((i == 0) ? j : j += 8));
+        }
+    }
+
+    template<>
+    void encode<float>(std::vector<int8_t>* buffer, int16_t* iterator, float value) {
+        int32_t result = *reinterpret_cast<int32_t*>(&value);
+        encode<int32_t>(buffer, iterator, result);
+    }
+
+    template<>
+    void encode<double>(std::vector<int8_t>* buffer, int16_t* iterator, double value) {
+        int64_t result = *reinterpret_cast<int64_t*>(&value);
+        encode<int64_t>(buffer, iterator, result);
+    }
+
+    template<>
+    void encode<std::string>(std::vector<int8_t>* buffer, int16_t* iterator, std::string value) {
+        for (unsigned i = 0; i < value.size(); i++) {
+            encode<int8_t>(buffer, iterator, value[i]);
+        }
+    }
+
+    template<typename T>
+    void encode(std::vector<int8_t>* buffer, int16_t* iterator, std::vector<T> value) {
+        for (unsigned i = 0; i < value.size(); i++) {
+            encode<T>(buffer, iterator, value[i]);
+        }
+    }
+}
 
 namespace ObjectModel {
-
     enum class Wrapper : int8_t {
         PRIMITIVE = 1,
         ARRAY,
@@ -57,7 +91,20 @@ namespace ObjectModel {
     private:
         Primitive();
     public:
-        static Primitive* createI32(std::string name, Type type, int32_t value);
+        template<typename T>
+        static Primitive* create(std::string name, Type type, T value) {
+            Primitive* p = new Primitive();
+            p->setName(name);
+            p->wrapper = static_cast<int8_t>(Wrapper::PRIMITIVE);
+            p->type = static_cast<int8_t>(type);
+            p->data = new std::vector<int8_t>(sizeof value);
+            p->size += p->data->size();
+            int16_t iterator = 0;
+            Core::template encode<T>(p->data, &iterator, value);
+
+            return p;
+        }
+
         void pack(std::vector<int8_t>*, int16_t*);
     };
 
@@ -74,7 +121,7 @@ namespace ObjectModel {
 namespace Core {
     namespace Util {
         bool isLittleEndian() {
-            int a = 5; // 0x00 0x00 0x00 0x05 - desired little endian
+            int8_t a = 5; // 0x00 0x00 0x00 0x05 - desired little endian
             std::string result = std::bitset<8>(a).to_string();
             if(result.back() == '1') return true;
         }
@@ -99,39 +146,7 @@ namespace Core {
         }
     }
 
-    // writing info into buffer vector in little-endian serialization
-    template<typename T>
-    void encode(std::vector<int8_t>* buffer, int16_t* iterator, T value) {
-        for (unsigned i = 0, j = 0; i < sizeof(T); i++) {
-            (*buffer)[(*iterator)++] = (value >> ((sizeof(T)* 8) - 8) - ((i == 0) ? j : j += 8));
-        }
-    }
 
-    template<>
-    void encode<float>(std::vector<int8_t>* buffer, int16_t* iterator, float value) {
-        int32_t result = *reinterpret_cast<int32_t*>(&value);
-        encode<int32_t>(buffer, iterator, result);
-    }
-
-    template<>
-    void encode<double>(std::vector<int8_t>* buffer, int16_t* iterator, double value) {
-        int64_t result = *reinterpret_cast<int64_t*>(&value);
-        encode<int64_t>(buffer, iterator, result);
-    }
-
-    template<>
-    void encode<std::string>(std::vector<int8_t>* buffer, int16_t* iterator, std::string value) {
-        for (unsigned i = 0; i < value.size(); i++) {
-            encode<int8_t>(buffer, iterator, value[i]);
-        }
-    }
-
-    template<typename T>
-    void encode(std::vector<int8_t>* buffer, int16_t* iterator, std::vector<T> value) {
-        for (unsigned i = 0; i < value.size(); i++) {
-            encode<T>(buffer, iterator, value[i]);
-        }
-    }
 
 
 }
@@ -160,24 +175,11 @@ namespace ObjectModel {
     }
 
     void Root::pack(std::vector<int8_t>* buffer, int16_t* iterator) {
-        Core::encode<std::string>(buffer, iterator, name);
+        // TODO:: likely pure virtual?
     }
 
     Primitive::Primitive() {
         size += sizeof type;
-    }
-
-    Primitive* Primitive::createI32(std::string name, Type type, int32_t value) {
-        Primitive* p = new Primitive();
-        p->setName(name);
-        p->wrapper = static_cast<int8_t>(Wrapper::PRIMITIVE);
-        p->type = static_cast<int8_t>(type);
-        p->data = new std::vector<int8_t>(sizeof value);
-        int16_t iterator = 0;
-        Core::encode(p->data, &iterator, value);
-
-
-        return p;
     }
 
     void Primitive::pack(std::vector<int8_t>* buffer, int16_t* iterator) {
@@ -208,7 +210,6 @@ namespace EventSystem {
     public:
         void addEvent(Event *);
         Event *getEvent();
-        bool isActive();
         void serialize();
     };
 
@@ -267,12 +268,6 @@ namespace EventSystem {
         return events.front();
     }
 
-    bool System::isActive() {
-        if (!system)
-            return false;
-        return true;
-    }
-
     void System::serialize(){
         //TODO::
     }
@@ -300,12 +295,14 @@ namespace EventSystem {
 
 using namespace EventSystem;
 using namespace ObjectModel;
+using namespace Core;
 
 int main(int argc, char **argv) {
     assert(Core::Util::isLittleEndian());
 
     int32_t foo = 5;
-    Primitive* p = Primitive::createI32("int32", Type::I32, foo);
+    Primitive* p = Primitive::create("int32", Type::I32, foo);
+    Core::Util::retrieveNsave(p);
 
 #if 0
     System Foo("Foo");
