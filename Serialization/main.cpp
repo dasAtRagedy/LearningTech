@@ -150,9 +150,16 @@ namespace ObjectModel {
     };
 
     class Object : public Root {
+    private:
+        std::vector<Root*> entities;
+        int16_t count = 0;
 
+    public:
+        Object(std::string);
+        void addEntity(Root* r);
+        Root* findByName(std::string);
+        void pack(std::vector<int8_t>*, int16_t*);
     };
-
 }
 
 namespace Core {
@@ -183,9 +190,6 @@ namespace Core {
             save(name.c_str(), buffer);
         }
     }
-
-
-
 
 }
 
@@ -240,6 +244,41 @@ namespace ObjectModel {
         Core::encode<int8_t>(buffer, iterator, type);
         Core::encode<int32_t>(buffer, iterator, count);
         Core::encode<int8_t>(buffer, iterator, *data);
+        Core::encode<int32_t>(buffer, iterator, size);
+    }
+
+    Object::Object(std::string name) {
+        setName(name);
+        wrapper = static_cast<int8_t>(Wrapper::OBJECT);
+        size += sizeof count;
+    }
+
+    void Object::addEntity(Root* r) {
+        this->entities.push_back(r);
+        count += 1;
+        size += r->getSize();
+    }
+
+    Root* Object::findByName(std::string name) {
+        for(auto r: entities) {
+            if(r->getName() == name) {
+                return r;
+            }
+        }
+        std::cout<<"Not found.\n";
+        return new Object("dummy");
+    }
+
+    void Object::pack(std::vector<int8_t>* buffer, int16_t* iterator) {
+        Core::encode<std::string>(buffer, iterator, name);
+        Core::encode<int16_t>(buffer, iterator, nameLength);
+        Core::encode<int8_t>(buffer, iterator, wrapper);
+        Core::encode<int16_t>(buffer, iterator, count);
+
+        for (Root* r : entities) {
+            r->pack(buffer, iterator);
+        }
+
         Core::encode<int32_t>(buffer, iterator, size);
     }
 }
@@ -352,6 +391,7 @@ using namespace Core;
 int main(int argc, char **argv) {
     assert(Core::Util::isLittleEndian());
 
+
     std::vector<int64_t> data{1, 2, 3, 4};
     Array* arr = Array::createArray("array", Type::I64, data);
     Core::Util::retrieveNsave(arr);
@@ -360,12 +400,22 @@ int main(int argc, char **argv) {
     Array* str = Array::createString("string", Type::I8, name);
     Core::Util::retrieveNsave(str);
 
-
-#if 0
     int32_t foo = 5;
     Primitive* p = Primitive::create("int32", Type::I32, foo);
     Core::Util::retrieveNsave(p);
-#endif
+
+
+    Object Test("Test");
+    Test.addEntity(p);
+    Test.addEntity(arr);
+    Test.addEntity(str);
+
+    Object Test2("Test2");
+    Test2.addEntity(p);
+    Core::Util::retrieveNsave(&Test2);
+
+    Test.addEntity(&Test2);
+    Core::Util::retrieveNsave(&Test);
 
 #if 0
     System Foo("Foo");
