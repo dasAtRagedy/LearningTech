@@ -3,6 +3,8 @@
 #include <bitset>
 #include <assert.h>
 #include <fstream>
+#include <random>
+#include <string.h>
 
 #define PRINT(a) result = #a;
 
@@ -305,6 +307,8 @@ namespace EventSystem {
     };
 
     class Event {
+    private:
+        int32_t id;
     public:
         enum DeviceType : int8_t {
             KEYBOARD = 1,
@@ -317,6 +321,7 @@ namespace EventSystem {
     public:
         Event(DeviceType);
         DeviceType getdType();
+        int32_t getID();
         friend std::ostream& operator<<(std::ostream& stream, const DeviceType dType) {
             std::string result;
             switch (dType) {
@@ -328,6 +333,7 @@ namespace EventSystem {
             return stream << result;
         }
         void bind(System*, Event*);
+        void serialize(ObjectModel::Object* o);
     };
 
     class KeyboardEvent : public Event {
@@ -337,6 +343,7 @@ namespace EventSystem {
         bool released;
     public:
         KeyboardEvent(int16_t, bool, bool);
+        void serialize(ObjectModel::Object* o);
     };
 
     //definition
@@ -359,17 +366,58 @@ namespace EventSystem {
         return events.front();
     }
 
+    int32_t Event::getID() {
+        return id;
+    }
+
+    /*
+        friend class Event;
+        std::string name;
+        int32_t descriptor;
+        int16_t index;
+        bool active;
+        std::vector<Event *> events;
+     */
+
     void System::serialize(){
-        //TODO::
+        ObjectModel::Object system("SysInfo");
+        ObjectModel::Array* name = ObjectModel::Array::createString("sysname", ObjectModel::Type::I8, this->name);
+        ObjectModel::Primitive* desc = ObjectModel::Primitive::create("desc", ObjectModel::Type::I32, this->descriptor);
+        ObjectModel::Primitive* index = ObjectModel::Primitive::create("index", ObjectModel::Type::I16, this->index);
+        ObjectModel::Primitive* active = ObjectModel::Primitive::create("active", ObjectModel::Type::BOOL, this->active);
+        system.addEntity(name);
+        system.addEntity(desc);
+        system.addEntity(index);
+        system.addEntity(active);
+
+        for (Event* e : events) {
+            KeyboardEvent* kb = static_cast<KeyboardEvent*>(e);
+            ObjectModel::Object* eventObject = new ObjectModel::Object("Event: " + std::to_string(e->getID()));
+            kb->serialize(eventObject);
+            system.addEntity(eventObject);
+        }
+
+        Core::Util::retrieveNsave(&system);
     }
 
     Event::Event(DeviceType dType) {
+        std::random_device rd;
+        std::uniform_int_distribution<> distribution(1, 1000); //
+        this->id = distribution(rd);
         this->dType = dType;
     }
 
     void Event::bind(System* system, Event* e) {
         this->system = system;
         this->system->events.push_back(e);
+    }
+
+    void Event::serialize(ObjectModel::Object* o) {
+        ObjectModel::Primitive* id = ObjectModel::Primitive::create("id", ObjectModel::Type::I32, this->getID());
+        ObjectModel::Primitive* dType = ObjectModel::Primitive::create("dType", ObjectModel::Type::I8, static_cast<int8_t>(this->dType));
+
+        o->addEntity(id);
+        o->addEntity(dType);
     }
 
     Event::DeviceType Event::getdType() {
@@ -382,6 +430,16 @@ namespace EventSystem {
         keyCode(keyCode),
         pressed(pressed),
         released(released) {}
+
+    void KeyboardEvent::serialize(ObjectModel::Object* o) {
+        Event::serialize(o);
+        ObjectModel::Primitive* keyCode = ObjectModel::Primitive::create("keyCode", ObjectModel::Type::I32, this->keyCode);
+        ObjectModel::Primitive* pressed = ObjectModel::Primitive::create("pressed", ObjectModel::Type::BOOL, this->pressed);
+        ObjectModel::Primitive* released = ObjectModel::Primitive::create("released", ObjectModel::Type::BOOL, this->released);
+        o->addEntity(keyCode);
+        o->addEntity(pressed);
+        o->addEntity(released);
+    }
 }
 
 using namespace EventSystem;
@@ -391,7 +449,7 @@ using namespace Core;
 int main(int argc, char **argv) {
     assert(Core::Util::isLittleEndian());
 
-
+#if 0
     std::vector<int64_t> data{1, 2, 3, 4};
     Array* arr = Array::createArray("array", Type::I64, data);
     Core::Util::retrieveNsave(arr);
@@ -417,7 +475,9 @@ int main(int argc, char **argv) {
     Test.addEntity(&Test2);
     Core::Util::retrieveNsave(&Test);
 
-#if 0
+#endif
+
+#if 1
     System Foo("Foo");
     Event* e = new KeyboardEvent('a', true, false);
 
